@@ -1,3 +1,10 @@
+"""
+This file contains methods used to load data and train example network models.
+
+Wilkie Olin-Ammentorp, 2022
+University of Califonia, San Diego
+"""
+
 import haiku as hk
 import jax
 import jax.numpy as jnp
