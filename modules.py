@@ -90,6 +90,15 @@ class PhasorDense(hk.Module):
         
         return y
 
+    def call_dynamic(self, x, t_box = 0.05, t_step = 0.01, t_stop = 10.0):
+        inds, times = x
+        n_steps = int(t_stop / t_step) + 1
+
+        
+
+
+
+
 class PhasorMultiDense(hk.Module):
     """
     Stack of linear layers to provide VSA eqivalent of multi-head attention.
