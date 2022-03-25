@@ -121,11 +121,12 @@ def phase_to_train(x, period: float = 1.0, repeats: int = 3):
 
     #list the time offset for each index and repeat it for repeats cycles
     times = x[inds]
-    order = np.argsort(times)
+
+    # order = np.argsort(times)
     
-    #sort by time
-    times = times[order]
-    inds = [np.take(inds[0], order)]
+    # #sort by time
+    # times = times[order]
+    # inds = [np.take(inds[0], order)]
     
     n_t = times.shape[0]
     dtype = x.dtype
@@ -180,20 +181,22 @@ def solve_heun(dx, tspan, init_val, dt):
 
 def train_to_phase(spikes, period: float = 1.0, offset: float = 0.0):
     inds, times, full_shape = spikes
+    #unravel the indices
+    inds = np.unravel_index(inds, full_shape)
     t_max = np.max(times)
     t_phase0 = period / 2.0
     #determine the number of cycles in the spike train
-    cycles = int(np.ceil(t_max / period))
+    cycles = int(np.ceil(t_max / period)+1)
     
     #offset all times according to a global reference
-    times += offset
-    #offset all times so that 0* is zero-centered
-    times -= t_phase0
-    cycle, times = np.divmod(times, period)
-    cycle = cycle.astype("int")
-    #unravel the indices
-    inds = np.unravel_index(inds, full_shape)
-    full_inds = (inds, cycle)
+    times += offset 
+    
+    cycle = (times // period).astype("int")
+    
+    times = (times - t_phase0) / t_phase0
+    times = (times + 1.0) % 2.0 - 1.0
+
+    full_inds = (*inds, cycle)
     
     phases = np.zeros((*full_shape, cycles), dtype="float")
     phases[full_inds] = times
