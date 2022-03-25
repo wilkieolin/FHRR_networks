@@ -62,7 +62,10 @@ class PhasorDense(hk.Module):
         self.w_init = w_init
         self.mask_angle = mask_angle
         
-    def __call__(self, x):
+    def __call__(self, x, static: bool = True, **kwargs):
+        if not static:
+            return self.call_dynamic(x, **kwargs)
+
         #access the weights / biases
         j, k = x.shape[-1], self.output_size
         w = hk.get_parameter("w", shape=[j, k], dtype=x.dtype, init=self.w_init)
@@ -95,6 +98,8 @@ class PhasorDense(hk.Module):
         n_steps = int(t_stop / t_step) + 1
 
         
+
+
 
 
 
