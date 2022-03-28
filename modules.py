@@ -14,6 +14,7 @@ import jax.numpy as jnp
 import haiku as hk
 from utils import *
 from einops import rearrange
+from spiking import *
 
 
 #   _____      _           _ _   _                
@@ -93,9 +94,43 @@ class PhasorDense(hk.Module):
         
         return y
 
-    def call_dynamic(self, x, t_box = 0.05, t_step = 0.01, t_stop = 10.0):
-        inds, times = x
-        n_steps = int(t_stop / t_step) + 1
+    def call_dynamic(self, 
+                        x, 
+                        t_box: float = 0.03, 
+                        t_step: float = 0.01, 
+                        t_range = (0.0, 10.0), 
+                        z_init = None,
+                        threshold: float = 0.05,
+                        gpu: bool = True,
+                        **kwargs):
+        
+        indices, times, full_shape = x
+
+        #access the weights / biases
+        j, k = full_shape.shape[-1], self.output_size
+        w = hk.get_parameter("w", shape=[j, k], dtype=x.dtype, init=self.w_init)
+        bz = hk.get_parameter("bz", shape=[k], dtype="complex64", init=jnp.ones)
+        #define the initial state
+        if z_init is None:
+            z_init = np.zeros([k], dtype="complex")
+        else:
+            assert z_init.shape is [k], "Initial z-values must match layer shape."
+
+        #define the current-generating function
+        current_fn = lambda t: current(x, t, box = t_box)
+        #define the differential update
+        if gpu:
+            dz_fn = lambda t, z: dz_dt_gpu(current_fn, t, z, weight=w, bias=bz, **kwargs)
+        else:
+            dz_fn = lambda t, z: dz_dt(current_fn, t, z, weight=w, bias=bz, **kwargs)
+
+        #integrate through time
+        solution = solve_heun(dz_fn, t_range, z_init, t_step)
+
+        #find and return the spikes produced
+        y = findspks(solution, threshold=threshold)
+
+        return y
 
         
 
