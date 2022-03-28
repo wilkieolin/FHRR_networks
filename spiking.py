@@ -161,7 +161,7 @@ def solve_heun(dx, tspan, init_val, dt):
     y[...,0] = init_val
     
     #iterate through
-    for (i,t) in tqdm(enumerate(times)):
+    for (i,t) in enumerate(tqdm(times)):
         #skip solving at the initial condition
         if i == 0:
             continue
