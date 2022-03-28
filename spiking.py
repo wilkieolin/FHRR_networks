@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import random, jit, vmap
+from tqdm import tqdm
 
 def current(x, t, box = 0.03):
     """
@@ -93,7 +93,7 @@ def findspks(sol, threshold=2e-3):
     spks_i = spks_i[0:-1]
     #ravel the indices
     shape = spks.shape[0:-1]
-    spks_r = np.ravel_multi_index(spks_i, shape)
+    spks_r = [np.ravel_multi_index(spks_i, shape)]
 
     return (spks_r, spks_t, shape)
 
@@ -161,7 +161,7 @@ def solve_heun(dx, tspan, init_val, dt):
     y[...,0] = init_val
     
     #iterate through
-    for (i,t) in enumerate(times):
+    for (i,t) in tqdm(enumerate(times)):
         #skip solving at the initial condition
         if i == 0:
             continue

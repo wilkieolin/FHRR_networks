@@ -128,14 +128,12 @@ class PhasorDense(hk.Module):
             dz_fn = lambda t, z: dz_dt(current_fn, t, z, weight=w, bias=bz, **kwargs)
 
         #integrate through time
+        if self.name is not None:
+            print("Solving layer", self.name)
         solution = solve_heun(dz_fn, t_range, z_init, t_step)
 
         #find and return the spikes produced
-        new_inds, new_times = findspks(solution, threshold=threshold)
-        new_shape = (n_batch, n_output)
-
-        #format output as our standard spike train
-        y = (new_inds, new_times, new_shape)
+        y = findspks(solution, threshold=threshold)
 
         return y
 
