@@ -56,7 +56,7 @@ def scale_mnist(images):
 #
 
 
-def accuracy(net, key, params, images, labels):
+def accuracy(net, key, params, images, labels, **kwargs):
     """
     Compute classification accuracy given a model, parameters, and dataset.
     """
