@@ -100,21 +100,24 @@ class PhasorDense(hk.Module):
                         t_step: float = 0.01, 
                         t_range = (0.0, 10.0), 
                         z_init = None,
-                        threshold: float = 0.05,
+                        threshold: float = 0.03,
                         gpu: bool = True,
                         **kwargs):
         
         indices, times, full_shape = x
 
         #access the weights / biases
-        j, k = full_shape.shape[-1], self.output_size
-        w = hk.get_parameter("w", shape=[j, k], dtype=x.dtype, init=self.w_init)
-        bz = hk.get_parameter("bz", shape=[k], dtype="complex64", init=jnp.ones)
+        n_batch, n_input = full_shape
+        n_output = self.output_size
+        w = hk.get_parameter("w", shape=[n_input, n_output], dtype="float", init=self.w_init)
+        bz = hk.get_parameter("bz", shape=[n_output], dtype="complex64", init=jnp.ones)
+
         #define the initial state
+        state_shape = (n_batch, n_output)
         if z_init is None:
-            z_init = np.zeros([k], dtype="complex")
+            z_init = np.zeros(state_shape, dtype="complex")
         else:
-            assert z_init.shape is [k], "Initial z-values must match layer shape."
+            assert z_init.shape is state_shape, "Initial z-values must match batch & layer shape."
 
         #define the current-generating function
         current_fn = lambda t: current(x, t, box = t_box)
@@ -131,12 +134,6 @@ class PhasorDense(hk.Module):
         y = findspks(solution, threshold=threshold)
 
         return y
-
-        
-
-
-
-
 
 
 class PhasorMultiDense(hk.Module):
