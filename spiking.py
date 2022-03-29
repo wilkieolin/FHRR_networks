@@ -2,24 +2,25 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from tqdm import tqdm
-
-def current(x, t, box = 0.03):
-    """
-    Given a spike train, calculate the currents at an arbitrary time.
-    """
-    inds, times, full_shape = x
+        
+def current(x, active_inds, t, t_step):
+    _, _, full_shape = x
     
     currents = np.zeros(full_shape)
-    
-    #get the times in the current window
-    cond = lambda x: (x > t - box) * (x < t + box)
-    active = np.nonzero(cond(times))
-    #swap the time indices for what flattened neuron they refer to
-    active = inds[0][active]
-    active = np.unravel_index(active, full_shape)
+    #access which neurons are active now
+    ind = int(t // t_step)
+    active = active_inds[ind]
     currents[active] += 1.0
     
     return currents
+
+def define_tgrid(t_span, t_step):
+    #calculate the solver grid
+    t_start, t_stop = t_span
+    n_points = int(np.ceil(t_stop / t_step) + 1) 
+    times = np.arange(0, n_points) * t_step
+    
+    return times
 
 def dz_dt(current_fn, 
             t, 
@@ -97,6 +98,22 @@ def findspks(sol, threshold=2e-3):
 
     return (spks_r, spks_t, shape)
 
+def generate_active(x, t_grid, t_box):
+    inds, times, full_shape = x
+    
+    active_inds = []
+    
+    for (i,t) in enumerate(t_grid):
+        cond = lambda x: (x > t - t_box) * (x < t + t_box)
+        active = np.nonzero(cond(times))
+        #swap the time indices for what flattened neuron they refer to
+        active = inds[0][active]
+
+        active = np.unravel_index(active, full_shape)
+        active_inds.append(active)
+        
+    return active_inds
+
 class ODESolution():
     """
     Dummy class to provide right structure of outputs for solutions
@@ -145,15 +162,12 @@ def phase_to_train(x, period: float = 1.0, repeats: int = 3):
     
     return (inds, times, shape)
 
-def solve_heun(dx, tspan, init_val, dt):
+def solve_heun(dx, times, dt, init_val):
     """
     Heun method to provide fine-grained control over solver points and computation
     """
-    
-    #calculate the solver grid
-    t_start, t_stop = tspan
-    n_points = int(np.ceil(t_stop / dt) + 1) 
-    times = np.arange(0, n_points) * dt
+
+    n_points = len(times)
 
     #initialize solutions
     y_shape = (*init_val.shape, n_points)

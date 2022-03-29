@@ -120,7 +120,9 @@ class PhasorDense(hk.Module):
             assert z_init.shape is state_shape, "Initial z-values must match batch & layer shape."
 
         #define the current-generating function
-        current_fn = lambda t: current(x, t, box = t_box)
+        t_grid = define_tgrid(t_range, t_step)
+        active_inds = generate_active(x, t_grid, t_box)
+        current_fn = lambda t: current(x, active_inds, t, t_step)
         #define the differential update
         if gpu:
             dz_fn = lambda t, z: dz_dt_gpu(current_fn, t, z, weight=w, bias=bz, **kwargs)
@@ -130,7 +132,8 @@ class PhasorDense(hk.Module):
         #integrate through time
         if self.name is not None:
             print("Solving layer", self.name)
-        solution = solve_heun(dz_fn, t_range, z_init, t_step)
+
+        solution = solve_heun(dz_fn, t_grid, t_step, z_init)
 
         #find and return the spikes produced
         y = findspks(solution, threshold=threshold)
