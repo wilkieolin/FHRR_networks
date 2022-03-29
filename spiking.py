@@ -202,8 +202,10 @@ def train_to_phase(spikes, period: float = 1.0, offset: float = 0.0):
     #determine the number of cycles in the spike train
     cycles = int(np.ceil(t_max / period)+1)
     
+    #make a new copy of times
+    times = np.array(times)
     #offset all times according to a global reference
-    times += offset 
+    times += offset
     
     cycle = (times // period).astype("int")
     
