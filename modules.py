@@ -69,8 +69,8 @@ class PhasorDense(hk.Module):
 
         #access the weights / biases
         j, k = x.shape[-1], self.output_size
-        w = hk.get_parameter("w", shape=[j, k], dtype=x.dtype, init=self.w_init)
-        bz = hk.get_parameter("bz", shape=[k], dtype="complex64", init=jnp.ones)
+        w = hk.get_parameter("w", shape=[j, k], dtype="float", init=self.w_init)
+        b = hk.get_parameter("bz", shape=[k], dtype="float", init=jnp.ones)
 
         #convert the phase angles to complex numbers
         pi = jnp.pi
@@ -83,6 +83,7 @@ class PhasorDense(hk.Module):
         
         #convert weights to complex
         wz = complex(w, jnp.zeros_like(w))
+        bz = complex(b, jnp.zeros_like(b))
         
         #do the complex sum & take the angle
         z = jnp.dot(xz, wz) + bz
@@ -110,7 +111,7 @@ class PhasorDense(hk.Module):
         n_batch, n_input = full_shape
         n_output = self.output_size
         w = hk.get_parameter("w", shape=[n_input, n_output], dtype="float", init=self.w_init)
-        bz = hk.get_parameter("bz", shape=[n_output], dtype="complex64", init=jnp.ones)
+        bz = hk.get_parameter("bz", shape=[n_output], dtype="float", init=jnp.ones)
 
         #define the initial state
         state_shape = (n_batch, n_output)

@@ -61,7 +61,7 @@ def accuracy(net, key, params, images, labels, **kwargs):
     Compute classification accuracy given a model, parameters, and dataset.
     """
 
-    yhat = net.apply(params, key, images)
+    yhat = net.apply(params, key, images, **kwargs)
     yhat = jnp.argmax(yhat, axis=1)
     return yhat == labels
 

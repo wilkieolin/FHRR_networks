@@ -28,7 +28,8 @@ def dz_dt(current_fn,
             weight = None, 
             bias = None, 
             leakage: float = -0.2, 
-            ang_freq: float = 2 * np.pi):
+            ang_freq: float = 2 * np.pi,
+            arbscale: float = 1.0,):
     """
     Given a function to calculate the current at a moment t and the present
     potential z, calculate the change in potentials
@@ -37,12 +38,13 @@ def dz_dt(current_fn,
     k = leakage + 1.0j*ang_freq
     
     #multiply current by the weights
-    currents = np.matmul(current_fn(t), weight, dtype="complex")
+    currents = np.matmul(current_fn(t), weight, dtype="complex128")
     #add the bias
     currents += bias
 
     #update the previous potential and add the currents
-    dz = k * z + currents
+    dz = k * z + arbscale * currents
+
     return dz
 
 def dz_dt_gpu(current_fn, 
@@ -51,7 +53,8 @@ def dz_dt_gpu(current_fn,
             weight = None, 
             bias = None, 
             leakage: float = -0.2, 
-            ang_freq: float = 2 * np.pi):
+            ang_freq: float = 2 * np.pi,
+            arbscale: float = 1.0,):
     """
     Given a function to calculate the current at a moment t and the present
     potential z, calculate the change in potentials. Call GPU for matmul.
@@ -61,12 +64,12 @@ def dz_dt_gpu(current_fn,
     
     #multiply current by the weights
     currents = jnp.matmul(current_fn(t), weight)
-    currents = np.array(currents, dtype="complex")
     #add the bias
-    currents += bias
-
+    currents = currents + bias
     #update the previous potential and add the currents
-    dz = k * z + currents
+    dz = k * z + arbscale * currents
+    dz = np.array(dz)
+
     return dz
 
 def findspks(sol, threshold=2e-3):
@@ -98,7 +101,36 @@ def findspks(sol, threshold=2e-3):
 
     return (spks_r, spks_t, shape)
 
+def inhibit_midpoint(x, mask_angle: float = 0.0, period: float = 1.0, offset: float = 0.0):
+    """
+    Given a spike train, remove any spikes occuring within an inhibitory stage
+    defined around the center of a period. 
+    """
+    #pass the method for no inhibitory period
+    if mask_angle <= 0.0:
+        return x
+
+    inds, times, full_shape = x
+
+    #adjust times by the offset
+    adj_times = times + offset
+    #take modulo over period
+    phases = time_to_phase(adj_times, period)
+    #find the phases not within the exclusion angle/inhibitory period
+    cond = lambda x: np.abs(x) > mask_angle
+    non_inhibited = np.where(cond, phases)
+
+    #remove the inhibited spikes
+    inds = inds[non_inhibited]
+    times = times[non_inhibited]
+
+    return (inds, times, full_shape)
+
 def generate_active(x, t_grid, t_box):
+    """
+    Given the time grid which is being solved over, generate an array which contains the
+    active (spiking) neurons at each time step.
+    """
     inds, times, full_shape = x
     
     active_inds = []
@@ -162,7 +194,7 @@ def phase_to_train(x, period: float = 1.0, repeats: int = 3):
     
     return (inds, times, shape)
 
-def solve_heun(dx, times, dt, init_val):
+def solve_heun(dz, times, dt, init_val):
     """
     Heun method to provide fine-grained control over solver points and computation
     """
@@ -181,9 +213,9 @@ def solve_heun(dx, times, dt, init_val):
             continue
         
         #heun method
-        slope0 = dx(times[i-1], y[...,i-1])
+        slope0 = dz(times[i-1], y[...,i-1])
         y1 = y[...,i-1] + dt*slope0
-        slope1 = dx(times[i], y1)
+        slope1 = dz(times[i], y1)
 
         y[...,i] = y[...,i-1] + dt * (slope0 + slope1) / 2.0
 
@@ -193,13 +225,26 @@ def solve_heun(dx, times, dt, init_val):
 
     return solution
 
+def time_to_phase(times, period):
+    """
+    Given a list of absolute times, use the period to convert them into phases.
+    """
+    times = times % period
+    times = (times - 0.5) * 2.0
+    return times
+
 def train_to_phase(spikes, period: float = 1.0, offset: float = 0.0):
     inds, times, full_shape = spikes
     #unravel the indices
     inds = np.unravel_index(inds, full_shape)
-    t_max = np.max(times)
-    t_phase0 = period / 2.0
+
+    #return array of zeros for no spikes
+    if len(times) == 0:
+        phases = np.zeros((*full_shape, 1), dtype="float")
+        return phases
+
     #determine the number of cycles in the spike train
+    t_max = np.max(times)
     cycles = int(np.ceil(t_max / period)+1)
     
     #make a new copy of times
@@ -209,12 +254,12 @@ def train_to_phase(spikes, period: float = 1.0, offset: float = 0.0):
     
     cycle = (times // period).astype("int")
     
-    times = (times - t_phase0) / t_phase0
-    times = (times + 1.0) % 2.0 - 1.0
+    #rescale times into phases
+    phase = time_to_phase(times, period)
 
     full_inds = (*inds, cycle)
     
     phases = np.zeros((*full_shape, cycles), dtype="float")
-    phases[full_inds] = times
+    phases[full_inds] = phase
 
     return phases
