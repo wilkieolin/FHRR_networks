@@ -135,7 +135,7 @@ def inhibit_midpoint(x, mask_angle: float = 0.0, period: float = 1.0, offset: fl
     non_inhibited = np.where(cond(phases))
 
     #remove the inhibited spikes
-    inds = inds[non_inhibited]
+    inds = [inds[0][non_inhibited]]
     times = times[non_inhibited]
 
     return (inds, times, full_shape)
