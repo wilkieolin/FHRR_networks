@@ -72,10 +72,11 @@ def dz_dt_gpu(current_fn,
 
     return dz
 
-def findspks(sol, threshold=2e-3):
+def find_spikes(sol, threshold: float = 2e-3, sparsity: float = -1.0):
     """
     'Gradient' method for spike detection. Finds where voltages (imaginary component of complex R&F potential) 
-    reaches a local minimum & are above a threshold, stores the corresponding time. 
+    reaches a local minimum & are above a threshold, stores the corresponding time. Sparsity applies a dynamic
+    threshold to produce the desired level of spiking. 
     """
     #calculate the temporal extent of the refractory period given its duty cycle
     ts = sol.t
@@ -84,18 +85,31 @@ def findspks(sol, threshold=2e-3):
     voltage = np.imag(zs)
     dvs = np.gradient(voltage, axis=-1)
     dsign = np.sign(dvs)
+    #produces ones at the local maxima
     spks = np.diff(dsign, axis=-1, prepend=np.zeros_like((zs.shape[1]))) < 0
     
     #filter by threshold
     above_t = voltage > threshold
     spks = spks * above_t
     
-    #last axis of spks_i is time
+    #last axis of spks_i is time (batch, neuron, time)
     spks_i = np.nonzero(spks)
+
+    #dynamically adjust the threshold to produce sparsity
+    if sparsity > 0.0:
+        spks_v = np.ravel(voltage[spks_i])
+        #find the threshold level necessary to produce the desired sparsity
+        dyn_threshold = np.percentile(spks_v, sparsity * 100)
+        #filter spikes further by the new threshold
+        above_dynt = voltage > dyn_threshold
+        spks = spks * above_dynt
+        #get the indices of the new spikes
+        spks_i = np.nonzero(spks)
+        
     #after getting spike time, remove the time index
     spks_t = ts[spks_i[-1]]
     spks_i = spks_i[0:-1]
-    #ravel the indices
+    #ravel the indices by (batch, neuron)
     shape = spks.shape[0:-1]
     spks_r = [np.ravel_multi_index(spks_i, shape)]
 
@@ -118,7 +132,7 @@ def inhibit_midpoint(x, mask_angle: float = 0.0, period: float = 1.0, offset: fl
     phases = time_to_phase(adj_times, period)
     #find the phases not within the exclusion angle/inhibitory period
     cond = lambda x: np.abs(x) > mask_angle
-    non_inhibited = np.where(cond, phases)
+    non_inhibited = np.where(cond(phases))
 
     #remove the inhibited spikes
     inds = inds[non_inhibited]
