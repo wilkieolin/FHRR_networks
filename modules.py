@@ -63,8 +63,8 @@ class PhasorDense(hk.Module):
         self.w_init = w_init
         self.mask_angle = mask_angle
         
-    def __call__(self, x, static: bool = True, **kwargs):
-        if not static:
+    def __call__(self, x, spiking: bool = False, **kwargs):
+        if spiking:
             return self.call_dynamic(x, **kwargs)
 
         #access the weights / biases
@@ -103,6 +103,7 @@ class PhasorDense(hk.Module):
                         z_init = None,
                         threshold: float = 0.03,
                         gpu: bool = True,
+                        full_solution: bool = False,
                         **kwargs):
         
         indices, times, full_shape = x
@@ -116,7 +117,7 @@ class PhasorDense(hk.Module):
         #define the initial state
         state_shape = (n_batch, n_output)
         if z_init is None:
-            z_init = np.zeros(state_shape, dtype="complex")
+            z_init = np.zeros(state_shape, dtype="complex128")
         else:
             assert z_init.shape is state_shape, "Initial z-values must match batch & layer shape."
 
@@ -137,7 +138,10 @@ class PhasorDense(hk.Module):
         solution = solve_heun(dz_fn, t_grid, t_step, z_init)
 
         #find and return the spikes produced
-        y = findspks(solution, threshold=threshold)
+        y = find_spikes(solution, threshold=threshold)
+
+        if self.mask_angle > 0.0:
+            y = inhibit_midpoint(y, self.mask_angle, 1.0)
 
         return y
 
