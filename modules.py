@@ -103,6 +103,7 @@ class PhasorDense(hk.Module):
                         z_init = None,
                         threshold: float = 0.05,
                         gpu: bool = True,
+                        offset: float = 0.0,
                         **kwargs):
         
         indices, times, full_shape = x
@@ -141,7 +142,7 @@ class PhasorDense(hk.Module):
 
         #exclude spikes from the inhibitory period if mask angle is being used
         if self.mask_angle > 0.0:
-            y = inhibit_midpoint(y, self.mask_angle, 1.0)
+            y = inhibit_midpoint(y, self.mask_angle, 1.0, offset=offset)
 
         return y
 
