@@ -223,6 +223,16 @@ def similarity(a,b):
 
     return similarity
 
+def similarity_outer(a,b):
+    """
+    FHRR symbol similarity between two sets of vectors
+    (b d), (c d) inputs -> (b c) outputs
+    """
+
+    sim_op = lambda x: similarity(x, b)
+    
+    return vmap(sim_op)(a)
+
 class SparseRandomUniform(hk.initializers.Initializer):
     """
     Constructs a :class:`SparseRandomUniform` initializer.
@@ -248,16 +258,6 @@ class SparseRandomUniform(hk.initializers.Initializer):
 
         return param
 
-
-def similarity_outer(a,b):
-    """
-    FHRR symbol similarity between two sets of vectors
-    (b d), (c d) inputs -> (b c) outputs
-    """
-
-    sim_op = lambda x: similarity(x, b)
-    
-    return vmap(sim_op)(a)
 
 def unitary_to_cmpx(symbols):
     """
