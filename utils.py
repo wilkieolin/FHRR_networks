@@ -114,7 +114,6 @@ def bundle(symbols, n=-1):
     bundle = jnp.sum(cmpx, axis=0)
     #convert the complex sum back to an angle
     bundle = cmpx_to_unitary(bundle)
-    bundle = jnp.reshape(bundle, (1, -1))
 
     return bundle
 

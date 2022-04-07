@@ -48,6 +48,83 @@ class CodebookDecoder(hk.Module):
 
         return similarity_outer(x, codebook)
 
+class GraphEncoder(hk.Module):
+    """
+    Given a graph in the Cardiotox dataset, encode it into a VSA.
+    
+    dim_vsa: int, length of vector-symbol used in the architecture
+    sigma: float, layerNorm scaling. 3.0 should keep ~99% of inputs from clipping over [-1,1]
+    """
+
+    def __init__(self, dim_vsa: int, dim_node: int = 27, dim_edge: int = 12, sigma: float = 3.0, name=None):
+        super().__init__(name=name)
+        self.dim_vsa = dim_vsa
+        self.dim_edge = dim_edge
+        self.dim_node = dim_node
+        self.sigma = sigma
+        
+    def __call__(self, x, ):
+        #get batch size
+        active = x['active']
+        n_batch = active.shape[0]
+        
+        graphs = []
+        
+        
+        def project_node(atoms):
+            atom_projection = hk.get_parameter("atom_projection", 
+                                        shape = [self.dim_node, self.dim_vsa],
+                                        init = hk.initializers.RandomNormal())
+            
+            atoms = np.einsum("x a, a d -> x d", atoms, atom_projection)
+            atoms = remap_phase(atoms)
+            #add random id to node
+            random_ids = generate_symbols(hk.next_rng_key(), atoms.shape[0], self.dim_vsa)
+            atoms = bundle_list(atoms, random_ids)
+            return atoms
+            
+        def project_edge(edges):
+            bond_projection = hk.get_parameter("bond_projection", 
+                                        shape = [self.dim_edge, self.dim_vsa],
+                                        init = hk.initializers.RandomNormal())
+            
+            edges = np.einsum("x a, a d -> x d", edges, bond_projection)
+            edges = remap_phase(edges)
+            return edges
+            
+        for i in range(n_batch):
+            #load the active bonds (edges)
+            #undirected graph so only use upper triangle of symmetric adj. matrix
+            active_edges = tf.experimental.numpy.triu(x['pair_mask'][i,...])
+            active_edges = tf.where(active_edges)
+            edges = tf.gather_nd(x['pairs'][i], active_edges)
+            
+            #find the atoms for each bond
+            sources = active_edges[:,0]
+            source_atoms = tf.gather(x['atoms'][i], sources, axis=0)
+            
+            destinations = active_edges[:,1]
+            dest_atoms = tf.gather(x['atoms'][i], destinations, axis=0)
+            
+            #convert to device array
+            source_atoms = jnp.array(source_atoms)
+            dest_atoms = jnp.array(dest_atoms)
+            edges = jnp.array(edges)
+            
+            #project each node into its symbol
+            source_atoms = project_node(source_atoms)
+            dest_atoms = project_node(dest_atoms)
+            
+            #project each edge into its symbol
+            edges = project_edge(edges)
+            
+            graph = bind_list(source_atoms, dest_atoms, edges)
+            #reduce along edges by bundling
+            graph = bundle(graph)
+            graphs.append(graph)
+            
+        return np.stack(graphs)
+
 class PhasorDense(hk.Module):
     """
     Fully-connected / "Linear" layer which implements phasor activation.
