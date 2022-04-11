@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import haiku as hk
 import tensorflow as tf
+import numpy as np
 from jax import random, jit, vmap
 from einops import rearrange
 from optax import NonNegativeParamsState
@@ -147,6 +148,12 @@ def disable_gpu_tf():
 
     tf.config.set_visible_devices([], 'GPU')
 
+def generate_spectrum(basis, length):
+    multipliers = np.arange(0, length, dtype="float") + 1
+    multipliers = np.reshape(multipliers, (1, -1))
+    spectrum = np.einsum("a d, a n -> n d", basis, multipliers)
+    spectrum = remap_phase(spectrum)
+    return spectrum
 
 def generate_symbols(key, number: int, dimensionality: int):
     """
