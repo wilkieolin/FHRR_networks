@@ -53,15 +53,17 @@ class GraphEncoder(hk.Module):
     Given a graph in the Cardiotox dataset, encode it into a VSA.
     
     dim_vsa: int, length of vector-symbol used in the architecture
-    sigma: float, layerNorm scaling. 3.0 should keep ~99% of inputs from clipping over [-1,1]
+    dim_node: number of features used to describe an node (atom)
+    dim_edge: number of features used to describe an edge (bond)
+    max_edges: maximum number of edges (bonds) in the dataset being encoded
     """
 
-    def __init__(self, dim_vsa: int, dim_node: int = 27, dim_edge: int = 12, sigma: float = 3.0, name=None):
+    def __init__(self, dim_vsa: int, dim_node: int = 27, dim_edge: int = 12, max_edges: int = 70, name=None):
         super().__init__(name=name)
         self.dim_vsa = dim_vsa
         self.dim_edge = dim_edge
         self.dim_node = dim_node
-        self.sigma = sigma
+        self.max_edges = max_edges
         
     def __call__(self, x, ):
         #get batch size
@@ -74,19 +76,16 @@ class GraphEncoder(hk.Module):
         def project_node(atoms):
             atom_projection = hk.get_parameter("atom_projection", 
                                         shape = [self.dim_node, self.dim_vsa],
-                                        init = hk.initializers.RandomNormal())
+                                        init = hk.initializers.RandomUniform())
             
             atoms = np.einsum("x a, a d -> x d", atoms, atom_projection)
             atoms = remap_phase(atoms)
-            #add random id to node
-            random_ids = generate_symbols(hk.next_rng_key(), atoms.shape[0], self.dim_vsa)
-            atoms = bundle_list(atoms, random_ids)
             return atoms
             
         def project_edge(edges):
             bond_projection = hk.get_parameter("bond_projection", 
                                         shape = [self.dim_edge, self.dim_vsa],
-                                        init = hk.initializers.RandomNormal())
+                                        init = hk.initializers.RandomUniform())
             
             edges = np.einsum("x a, a d -> x d", edges, bond_projection)
             edges = remap_phase(edges)
@@ -118,9 +117,25 @@ class GraphEncoder(hk.Module):
             #project each edge into its symbol
             edges = project_edge(edges)
             
+            #add the spectrum (frequency encoding) to each node
+            n_edges = edges.shape[0]
+            f_basis = hk.get_parameter("frequency_basis",
+                                      shape = [1, self.dim_vsa],
+                                      init = hk.initializers.RandomUniform())
+            
+            spectrum = generate_spectrum(f_basis, n_edges)
+
+            #construct the graph from atoms, edges, and bundle with the spectrum
             graph = bind_list(source_atoms, dest_atoms, edges)
-            #reduce along edges by bundling
-            graph = bundle(graph)
+            graph = bundle_list(graph, spectrum)
+            
+            #pad out the array
+            
+            padding = np.zeros((self.max_edges - n_edges, self.dim_vsa))
+            graph = np.concatenate((graph, padding), axis=0)
+            #move back to CPU
+            graph = np.array(graph)
+            
             graphs.append(graph)
             
         return np.stack(graphs)
