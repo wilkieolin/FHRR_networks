@@ -178,7 +178,7 @@ class PhasorDense(hk.Module):
         bz = complex(b, jnp.zeros_like(b))
         
         #do the complex sum & take the angle
-        z = jnp.dot(xz, wz) + bz
+        z = jnp.matmul(xz, wz) + bz
         y = phasor_act(z)
         #mask all outputs inside the arc of the mask angle
         if self.mask_angle > 0.0:

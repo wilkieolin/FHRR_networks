@@ -73,7 +73,8 @@ def update_params(model: hk.Transformed,
                 loss_fn = None, 
                 data = None, 
                 optimizer = None, 
-                opt_state = None, ):
+                opt_state = None, 
+                **kwargs):
     """
     Training loop update step. 
     """
@@ -84,7 +85,7 @@ def update_params(model: hk.Transformed,
 
     #lambda function to compute loss 
     batch_loss = lambda tp, ntp: jnp.mean(loss_fn(
-                                        model.apply(hk.data_structures.merge(tp, ntp), key, xd, is_training=True),
+                                        model.apply(hk.data_structures.merge(tp, ntp), key, xd, is_training=True, **kwargs),
                                         yd))
 
     #compute the loss value and gradients
@@ -106,7 +107,8 @@ def train_model(model,
                 batches: int = None,
                 loss_history = None,
                 opt_state = None,
-                non_trainable_params = ["codebook", "static_projection", "classification_query"]):
+                non_trainable_params = ["codebook", "static_projection", "classification_query"],
+                **kwargs):
     """
     Main training loop for reducing loss for a model on a dataset.
     """
@@ -137,7 +139,8 @@ def train_model(model,
                             loss_fn = loss_fn, 
                             data = batch, 
                             optimizer = optimizer, 
-                            opt_state = opt_state, )
+                            opt_state = opt_state, 
+                            **kwargs)
 
     #main optimizer loop
     for i in tqdm(range(batches)):
