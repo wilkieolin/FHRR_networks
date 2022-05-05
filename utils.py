@@ -130,6 +130,56 @@ def bundle_list(*symbols):
 
     return bundle(symbols)
 
+def calc_boundary(similarities):
+    """
+    Given a matrix of n x 2 similarity values, calculate the difference between
+    each pair. 
+    """
+
+    mat = jnp.array([[-1.0, 1.0],])
+    boundary = jnp.matmul(jnp.abs(similarities), mat.transpose())
+    return boundary
+
+def calc_stats(svals, truth, threshold):
+    """
+    Given an array of significance values, truth values, and a threshold, return
+    the set of true/false positives/negatives. 
+    """
+
+    svals = svals.ravel()
+    inactive = 1.0 * (svals <= threshold)
+    active = 1.0 * (svals > threshold)
+    
+    tp = jnp.sum((active * truth[:,1]))
+    fp = jnp.sum(active) - tp
+    
+    tn = jnp.sum((inactive * truth[:,0]))
+    fn = jnp.sum(inactive) - tn
+    
+    return (tp, fp, tn, fn)
+
+def calc_roc(svals, truth, points = 1001):
+    """
+    Given an array of significance values, truth values, and the number of points to
+    test over, calculate the receiver operator characteristic.
+    """
+
+    space = np.linspace(-1.01, 1.01, points)
+    
+    xs = np.zeros(points)
+    ys = np.zeros(points)
+    
+    for (i,p) in enumerate(space):
+        tp, fp, tn, fn = calc_stats(svals, truth, p)
+        
+        tpr = tp / (tp + fn)
+        fpr = fp / (fp + tn)
+        
+        xs[i] = fpr
+        ys[i] = tpr
+        
+    return (xs, ys)
+
 def cmpx_to_unitary(cmpx):
     """
     Convert complex numbers back to radian-normalized angles on the domain (-1, 1)
