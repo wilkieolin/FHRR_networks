@@ -13,7 +13,7 @@ import optax
 import tensorflow_datasets as tfds
 
 from FHRR.modules import *
-from utils import *
+from FHRR.utils import *
 from tqdm import tqdm
 from functools import reduce
 
