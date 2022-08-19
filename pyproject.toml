@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "FHRR networks"
+version = "0.1.0"
+authors = [
+    {name = "Wilkie Olin-Ammentorp"}
+]
+
+[options]
+packages = find:
+install_requires =
+    jax
+    optax
+    dm-haiku
+    tensorflow
+    tensorflow-datasets
