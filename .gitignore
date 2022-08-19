@@ -3,3 +3,6 @@ __pycache__/
 *dev*.ipynb
 *.p
 *.npz
+build/*
+dist/*
+FHRR.egg-info/*
