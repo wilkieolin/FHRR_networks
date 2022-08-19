@@ -12,9 +12,9 @@ import jax
 from jax.lax import complex
 import jax.numpy as jnp
 import haiku as hk
-from utils import *
 from einops import rearrange
-from spiking import *
+from FHRR.utils import *
+from FHRR.spiking import *
 
 
 #   _____      _           _ _   _                

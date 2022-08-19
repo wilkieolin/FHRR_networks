@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import optax
 import tensorflow_datasets as tfds
 
-from modules import *
+from FHRR.modules import *
 from utils import *
 from tqdm import tqdm
 from functools import reduce
