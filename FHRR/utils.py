@@ -12,7 +12,6 @@ University of Califonia, San Diego
 import jax
 import jax.numpy as jnp
 import haiku as hk
-import tensorflow as tf
 import numpy as np
 from jax import random, jit, vmap
 from einops import rearrange
@@ -190,13 +189,6 @@ def cmpx_to_unitary(cmpx):
     symbol = jnp.angle(cmpx) / pi
 
     return symbol
-
-def disable_gpu_tf():
-    """
-    Disable visible devices to tensorflow so it and JAX don't fight over memory
-    """
-
-    tf.config.set_visible_devices([], 'GPU')
 
 def generate_spectrum(basis, length):
     multipliers = np.arange(0, length, dtype="float") + 1
