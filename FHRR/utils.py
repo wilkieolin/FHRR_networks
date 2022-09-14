@@ -67,33 +67,35 @@ def attend(queries, keys, values, dropout_prob: float = 0.0, attention_mask = No
 
     return output
 
-def bind(symbols):
+def bind(symbols, use_gpu: bool = True):
     """
     FHRR binding operation (x)
 
     (2 d) inputs -> (d) output
     Given matrix of two symbols (2 d), sum angles along the zeroth dimension and remap to (-1,1)
     """
+    lib = get_lib(use_gpu)
     #sum the angles
-    symbol = jnp.sum(symbols, axis=0)
+    symbol = lib.sum(symbols, axis=0)
     #remap the angles to (-1, 1)
     symbol = remap_phase(symbol)
 
     return symbol
 
-def bind_list(*symbols):
+def bind_list(*symbols, use_gpu: bool = True):
     """
     FHRR list binding operation (x)
 
     [(arbitrary), (arbitrary)] inputs -> (arbitrary) output
     Given two tensors of symbols, stack along the zeroth dimension and pass to the bind op
     """
+    lib = get_lib(use_gpu)
     #stack the vararg inputs into an array
-    symbols = jnp.stack(symbols, axis=0)
+    symbols = lib.stack(symbols, axis=0)
 
-    return bind(symbols)
+    return bind(symbols, use_gpu)
 
-def bundle(symbols, n=-1):
+def bundle(symbols, n=-1, use_gpu: bool = True):
     """
     FHRR bundling operation (+)
 
@@ -103,31 +105,33 @@ def bundle(symbols, n=-1):
 
     The first symbol in the list can be 'weighted' to change its impact on the average.
     """
-
+    lib = get_lib(use_gpu)
     #sum the complex numbers to find the bundled vector
-    cmpx = unitary_to_cmpx(symbols)
+    cmpx = unitary_to_cmpx(symbols, use_gpu)
+
     if n > 1:
         cmpx_0 = n * cmpx[0:1, :]
         cmpx_1 = cmpx[1:, :]
-        cmpx = jnp.stack((cmpx_0, cmpx_1), axis=0)
+        cmpx = lib.stack((cmpx_0, cmpx_1), axis=0)
 
-    bundle = jnp.sum(cmpx, axis=0)
+    bundle = lib.sum(cmpx, axis=0)
     #convert the complex sum back to an angle
-    bundle = cmpx_to_unitary(bundle)
+    bundle = cmpx_to_unitary(bundle, use_gpu)
 
     return bundle
 
-def bundle_list(*symbols):
+def bundle_list(*symbols, use_gpu: bool = True):
     """
     FHRR list bundling operation (+)
 
     [(arbitrary)...] inputs -> (arbitrary) output
     Given tensors of symbols, stack along the zeroth dimension and pass to the bundling op
     """
+    lib = get_lib(use_gpu)
     #stack the vararg inputs into an array
-    symbols = jnp.stack(symbols, axis=0)
+    symbols = lib.stack(symbols, axis=0)
 
-    return bundle(symbols)
+    return bundle(symbols, use_gpu)
 
 def calc_boundary(similarities):
     """
@@ -179,14 +183,15 @@ def calc_roc(svals, truth, points = 1001):
         
     return (xs, ys)
 
-def cmpx_to_unitary(cmpx):
+def cmpx_to_unitary(cmpx, use_gpu: bool = True):
     """
     Convert complex numbers back to radian-normalized angles on the domain (-1, 1)
     """
+    lib = get_lib(use_gpu)
 
-    pi = jnp.pi
+    pi = lib.pi
     #convert the complex sum back to an angle
-    symbol = jnp.angle(cmpx) / pi
+    symbol = lib.angle(cmpx) / pi
 
     return symbol
 
@@ -208,6 +213,11 @@ def generate_symbols(key, number: int, dimensionality: int):
 
     return random.uniform(key, minval=-1.0, maxval=1.0, shape=(number, dimensionality))
 
+def get_lib(use_gpu: bool):
+    if use_gpu:
+        return jnp
+    else:
+        return np
 
 @jax.jit
 def onehot_loss(similarities, labels):
@@ -243,12 +253,13 @@ def normalize_PCM16(x):
     return x / sig_16_max
     
 
-def remap_phase(x):
+def remap_phase(x, use_gpu: bool = True):
     """
     Remap radian-normalized angles from (-inf, inf) to equivalent (-1, 1) angles
     """
-    x = jnp.mod(x, 2.0)
-    x = -2.0 * jnp.greater(x, 1.0) + x
+    lib = get_lib(use_gpu)
+    x = lib.mod(x, 2.0)
+    x = -2.0 * lib.greater(x, 1.0) + x
 
     return x
 
@@ -307,21 +318,22 @@ class SparseRandomUniform(hk.initializers.Initializer):
         return param
 
 
-def unitary_to_cmpx(symbols):
+def unitary_to_cmpx(symbols, use_gpu: bool = True):
     """
     Convert phasor symbols on the domain (-1, 1) to complex numbers
     lying on the unit circle
     """
 
+    lib = get_lib(use_gpu)
     #convert each angle to a complex number
-    pi = jnp.pi
-    j = jnp.array([0+1j])
+    pi = lib.pi
+    j = lib.array([0+1j])
     #sum the complex numbers to find the bundled vector
-    cmpx = jnp.exp(pi * j * symbols)
+    cmpx = lib.exp(pi * j * symbols)
 
     return cmpx
 
-def unbundle(x, symbols, n=-1):
+def unbundle(x, symbols, n=-1, use_gpu: bool = True):
     """
     FHRR unbundling operation
 
@@ -334,40 +346,45 @@ def unbundle(x, symbols, n=-1):
 
     #assume that the number of symbols bundled to form x is the number
     #passed in the matrix plus one
+    lib = get_lib(use_gpu)
+
     if n <= 0:
         n = symbols.shape[0] + 1
     assert n >= symbols.shape[0], "Too many symbols to unbundle given this weight"
     
-    x_cmpx = unitary_to_cmpx(x) * n
-    s_cmpx = unitary_to_cmpx(symbols)
+    x_cmpx = unitary_to_cmpx(x, use_gpu) * n
+    s_cmpx = unitary_to_cmpx(symbols, use_gpu)
 
-    symbol = x_cmpx - jnp.sum(s_cmpx, axis=0)
-    symbol = cmpx_to_unitary(symbol)
-    symbol = jnp.reshape(symbol, (1, -1))
+    symbol = x_cmpx - lib.sum(s_cmpx, axis=0)
+    symbol = cmpx_to_unitary(symbol, use_gpu)
+    symbol = lib.reshape(symbol, (1, -1))
 
     return symbol
 
-def unbind(x, symbols):
+def unbind(x, symbols, use_gpu: bool = True):
     """
     FHRR unbinding operation
 
     (1 d), (n d) inputs -> (1 d) output
     """
-    symbols = jnp.sum(symbols, axis=0)
+    lib = get_lib(use_gpu)
+
+    symbols = lib.sum(symbols, axis=0)
 
     #remove them from the input & remap phase
-    symbol = jnp.subtract(x, symbols)
-    symbol = remap_phase(symbol)
+    symbol = lib.subtract(x, symbols)
+    symbol = remap_phase(symbol, use_gpu)
 
     return symbol
 
-def unbind_list(x, *symbols):
+def unbind_list(x, *symbols, use_gpu: bool = True):
     """
     FHRR list unbinding operation
     (1 d), [(1 d) ...] inputs -> (1 d) output
     """
+    lib = get_lib(use_gpu)
 
     #stack and sum the symbols to be unbound
-    symbols = jnp.stack(symbols, axis=0)
+    symbols = lib.stack(symbols, axis=0)
 
-    return unbind(x, symbols)
+    return unbind(x, symbols, use_gpu)
